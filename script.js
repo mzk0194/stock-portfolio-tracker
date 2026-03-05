@@ -1,9 +1,18 @@
+let editIndex = null;
 let stocks = [];
 
 let stockList = document.getElementById("stockList");
 let addButton = document.getElementById("addButton");
+let cancelEditButton = document.getElementById("cancelEditButton");
+let sortHigh = document.getElementById("sortHigh");
+let sortLow = document.getElementById("sortLow");
+let getPriceButton = document.getElementById("getPriceButton");
 
+// =====================
+// Render Function
+// =====================
 function renderStocks() {
+
     stockList.innerHTML = "";
 
     let totalInvested = 0;
@@ -36,6 +45,7 @@ function renderStocks() {
             profitSpan.style.color = "red";
         }
 
+        // Delete Button
         let deleteButton = document.createElement("button");
         deleteButton.innerText = "Delete";
 
@@ -44,11 +54,30 @@ function renderStocks() {
             renderStocks();
         };
 
+        // Edit Button
+        let editButton = document.createElement("button");
+        editButton.innerText = "Edit";
+
+        editButton.onclick = function(){
+
+            document.getElementById("stockName").value = stock.name;
+            document.getElementById("shares").value = stock.shares;
+            document.getElementById("price").value = stock.buyPrice;
+
+            editIndex = index;
+            addButton.innerText = "Update Stock";
+            cancelEditButton.style.display = "inline";
+        };
+
         listItem.appendChild(deleteButton);
+        listItem.appendChild(editButton);
         stockList.appendChild(listItem);
     });
 
-    // 🔥 전체 계산
+    // =====================
+    // Total Calculation
+    // =====================
+
     let totalProfit = totalCurrent - totalInvested;
     let totalProfitRate = totalInvested !== 0 
         ? (totalProfit / totalInvested) * 100 
@@ -73,9 +102,13 @@ function renderStocks() {
     localStorage.setItem("stocks", JSON.stringify(stocks));
 }
 
+// =====================
+// Add / Update Stock
+// =====================
+
 addButton.onclick = function() {
 
-    let stockName = document.getElementById("stockName").value;
+    let stockName = document.getElementById("stockName").value.toUpperCase();
     let shares = parseFloat(document.getElementById("shares").value);
     let price = parseFloat(document.getElementById("price").value);
 
@@ -84,12 +117,26 @@ addButton.onclick = function() {
         return;
     }
 
-    stocks.push({
-        name: stockName,
-        shares: shares,
-        buyPrice: price,
-        currentPrice: price
-    });
+    if (editIndex === null){
+
+        stocks.push({
+            name: stockName,
+            shares: shares,
+            buyPrice: price,
+            currentPrice: price
+        });
+
+    } else {
+
+        stocks[editIndex].name = stockName;
+        stocks[editIndex].shares = shares;
+        stocks[editIndex].buyPrice = price;
+        stocks[editIndex].currentPrice = price;
+
+        editIndex = null;
+        addButton.innerText = "Add Stock";
+        cancelEditButton.style.display = "none";
+    }
 
     renderStocks();
 
@@ -98,88 +145,89 @@ addButton.onclick = function() {
     document.getElementById("price").value = "";
 };
 
-// 🔥 localStorage 불러오기 + 구조 변환 먼저
-let savedStocks = localStorage.getItem("stocks");
+// =====================
+// Cancel Edit
+// =====================
 
-if (savedStocks) {
-    stocks = JSON.parse(savedStocks);
+cancelEditButton.onclick = function(){
 
-    stocks = stocks.map(stock => {
-        if (stock.buyPrice === undefined) {
-            stock.buyPrice = stock.price;
-            stock.currentPrice = stock.price;
-            delete stock.price;
-        }
-        return stock;
-    });
+    editIndex = null;
 
-    renderStocks();
+    document.getElementById("stockName").value = "";
+    document.getElementById("shares").value = "";
+    document.getElementById("price").value = "";
+
+    addButton.innerText = "Add Stock";
+    cancelEditButton.style.display = "none";
 }
 
-let getPriceButton = document.getElementById("getPriceButton");
+// =====================
+// Get Current Price (API)
+// =====================
 
 getPriceButton.onclick = async function () {
 
     let stockName = document.getElementById("stockName").value;
 
     if (!stockName) {
-        alert("Please enter stock symbol (e.g., AAPL)");
+        alert("Enter stock symbol (ex: AAPL)");
         return;
     }
 
     try {
 
         let response = await fetch(
-            `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stockName}&apikey=2HXV9OJ3RF4F34VV`
+            `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stockName}&apikey=demo`
         );
 
         let data = await response.json();
 
         if (data["Global Quote"] && data["Global Quote"]["05. price"]) {
 
-            let price = data["Global Quote"]["05. price"];
-            document.getElementById("price").value =
-                parseFloat(price).toFixed(2);
+            let price = parseFloat(data["Global Quote"]["05. price"]);
+            document.getElementById("price").value = price.toFixed(2);
 
         } else {
-            console.log(data); 
-            alert("API limit reached or invalid symbol.");
+
+            console.log(data);
+            alert("API limit reached or invalid symbol");
+
         }
 
     } catch (error) {
 
-        console.error("Error:", error);
-        alert("Failed to fetch stock price.");
+        console.error(error);
+        alert("Failed to fetch price");
 
     }
 
 };
 
-async function updatePrices() {
+// =====================
+// Auto Update Prices
+// =====================
 
-    console.log("업데이트 실행됨");
+async function updatePrices() {
 
     for (let stock of stocks) {
 
         try {
 
             let response = await fetch(
-                `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.name}&apikey=2HXV9OJ3RF4F34VV`
-            );
+                'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.name}&apikey=KKLH053PKHQ6Q3P6');
 
             let data = await response.json();
 
             if (data["Global Quote"] && data["Global Quote"]["05. price"]) {
 
-                let newPrice = data["Global Quote"]["05. price"];
-                stock.currentPrice = parseFloat(newPrice);
+                stock.currentPrice = parseFloat(data["Global Quote"]["05. price"]);
 
-            } else {
-                console.log("API limit reached or invalid symbol");
             }
 
         } catch (error) {
-            console.error("Update error:", error);
+
+            console.log("Update error", error);
+
         }
 
     }
@@ -187,5 +235,62 @@ async function updatePrices() {
     renderStocks();
 }
 
-// API 제한 주의 (무료는 금방 걸림)
-//setInterval(updatePrices, 100000);
+// =====================
+// Load LocalStorage
+// =====================
+
+let savedStocks = localStorage.getItem("stocks");
+
+if (savedStocks) {
+
+    stocks = JSON.parse(savedStocks);
+
+    stocks = stocks.map(stock => {
+
+        if (stock.buyPrice === undefined) {
+            stock.buyPrice = stock.price;
+            stock.currentPrice = stock.price;
+            delete stock.price;
+        }
+
+        return stock;
+    });
+
+    renderStocks();
+}
+
+// =====================
+// Sort Functions
+// =====================
+
+sortHigh.onclick = function() {
+
+    stocks.sort(function(a, b) {
+
+        let profitA = (a.currentPrice - a.buyPrice) * a.shares;
+        let profitB = (b.currentPrice - b.buyPrice) * b.shares;
+
+        return profitB - profitA;
+
+    });
+
+    renderStocks();
+};
+
+sortLow.onclick = function() {
+
+    stocks.sort(function(a, b) {
+
+        let profitA = (a.currentPrice - a.buyPrice) * a.shares;
+        let profitB = (b.currentPrice - b.buyPrice) * b.shares;
+
+        return profitA - profitB;
+
+    });
+
+    renderStocks();
+};
+
+// 100초마다 가격 업데이트
+// (무료 API는 제한 있음)
+setInterval(updatePrices, 100000);
