@@ -114,7 +114,7 @@ addButton.onclick = function() {
 
     if (!stockName || isNaN(shares) || isNaN(price)) {
         alert("Please enter valid stock name and numbers");
-        return;
+        return; // return으로 여기서 함수 종료. 만약 없다면 코드 계속 실행.
     }
 
     if (editIndex === null){
